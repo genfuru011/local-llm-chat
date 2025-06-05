@@ -167,19 +167,19 @@ check_ollama() {
 2. 手動インストール - ブラウザでダウンロードページを開く
 3. キャンセル - 後でインストール" buttons {"キャンセル", "手動", "自動"} default button "自動" with icon caution
         button returned of result
-        ' 2>/dev/null
+        ') 2>/dev/null
         
-        case $? in
-            0)  # 自動インストール選択
+        case "$choice" in
+            "自動")  # 自動インストール選択
                 auto_install_ollama
                 ;;
-            1)  # 手動インストール選択  
+            "手動")  # 手動インストール選択  
                 echo "$(date): 📱 手動インストールを選択しました"
                 open "https://ollama.ai/download"
                 osascript -e 'display dialog "Ollamaのインストールが完了したら、再度アプリを起動してください。" buttons {"OK"} default button "OK" with icon note'
                 exit 1
                 ;;
-            *)  # キャンセル
+            "キャンセル")  # キャンセル
                 echo "$(date): ❌ インストールがキャンセルされました"
                 exit 1
                 ;;
