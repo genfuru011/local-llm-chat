@@ -7,7 +7,9 @@ import { useId } from "react"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Settings, MessageSquare, Bot, User, Wifi, Download, Trash2, RefreshCw, Search } from "lucide-react"
+import { Settings, MessageSquare, Bot, User, Wifi, Download, Trash2, RefreshCw, Search, ChevronDown, ChevronUp } from "lucide-react"
+
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select"
 
 interface OllamaModel {
   name: string
@@ -22,7 +24,14 @@ interface OllamaModel {
   pulls?: number
 }
 
-import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select"
+interface ModelTag {
+  name: string
+  tag: string
+  size?: string
+  description?: string
+  installed?: boolean
+  localInfo?: any
+}
 
 export default function LocalLLMChat() {
   const [filterOfficial, setFilterOfficial] = useState(false)
@@ -47,6 +56,8 @@ export default function LocalLLMChat() {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null)
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', message: string} | null>(null)
   const [pullProgress, setPullProgress] = useState<{[key: string]: {completed: number, total: number, status: string}}>({})
+  const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set())
+  const [modelTags, setModelTags] = useState<{[key: string]: ModelTag[]}>({})
 
   // ローカルストレージから設定を読み込み
   useEffect(() => {
@@ -277,6 +288,42 @@ export default function LocalLLMChat() {
       showStatusMessage('error', '削除中にエラーが発生しました')
       console.error('Error deleting model:', error)
     }
+  }
+
+  // モデルタグを取得
+  const fetchModelTags = async (modelName: string) => {
+    try {
+      const response = await fetch(`/api/ollama-model-tags?model=${encodeURIComponent(modelName)}&endpoint=${encodeURIComponent(customEndpoint)}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setModelTags(prev => ({
+          ...prev,
+          [modelName]: data.tags
+        }))
+      } else {
+        console.error(`Failed to fetch tags for ${modelName}:`, data.error)
+      }
+    } catch (error) {
+      console.error(`Error fetching tags for ${modelName}:`, error)
+    }
+  }
+
+  // モデルの展開/縮小をトグル
+  const toggleModelExpansion = async (modelName: string) => {
+    setExpandedModels(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(modelName)) {
+        newSet.delete(modelName)
+      } else {
+        newSet.add(modelName)
+        // タグがまだ取得されていない場合は取得
+        if (!modelTags[modelName]) {
+          fetchModelTags(modelName)
+        }
+      }
+      return newSet
+    })
   }
 
   // フィルタリングされたモデル一覧
@@ -549,9 +596,7 @@ export default function LocalLLMChat() {
                     <span>全 <strong>{availableModels.length}</strong> 件のモデル</span>
                   )}
                 </div>
-              )}
-
-              {/* Model List */}
+              )}              {/* Model List */}
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {loadingModels ? (
                   <div className="text-center py-8 text-slate-500">
@@ -569,114 +614,238 @@ export default function LocalLLMChat() {
                   </div>
                 ) : (
                   filteredModels.map((model) => (
-                    <div
-                      key={model.name}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium">{model.name}</h3>
-                          {model.installed && (
-                            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                              ✅ インストール済み
-                            </Badge>
-                          )}
-                          {model.official && (
-                            <Badge variant="outline" className="text-xs">
-                              🏛️ 公式
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-slate-600 mb-2">{model.description}</p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className="text-xs">
-                            📦 {model.size}
-                          </Badge>
-                          {model.pulls && (
-                            <Badge variant="secondary" className="text-xs">
-                              📥 {model.pulls.toLocaleString()}回ダウンロード
-                            </Badge>
-                          )}
-                          {model.tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs">
-                              #{tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        {model.installed ? (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setModelName(model.name)
-                                setShowModelBrowser(false)
-                              }}
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            >
-                              ✨ 使用
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                if (confirm(`モデル「${model.name}」を削除しますか？`)) {
-                                  deleteModel(model.name)
-                                }
-                              }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <div className="flex flex-col gap-2">
-                            {pullProgress[model.name] ? (
-                              <div className="min-w-[200px]">
-                                <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
-                                  <span>{pullProgress[model.name].status}</span>
-                                  <span>
-                                    {Math.round((pullProgress[model.name].completed / pullProgress[model.name].total) * 100)}%
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                  <div 
-                                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                                    style={{ 
-                                      width: `${(pullProgress[model.name].completed / pullProgress[model.name].total) * 100}%` 
-                                    }}
-                                  ></div>
-                                </div>
-                                <div className="text-xs text-slate-500 mt-1">
-                                  {formatBytes(pullProgress[model.name].completed)} / {formatBytes(pullProgress[model.name].total)}
-                                </div>
-                              </div>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => downloadModelWithProgress(model.name)}
-                                disabled={downloadingModels.has(model.name)}
-                                className="min-w-[120px]"
-                              >
-                                {downloadingModels.has(model.name) ? (
-                                  <>
-                                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                    ダウンロード中...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Download className="w-4 h-4 mr-2" />
-                                    ダウンロード
-                                  </>
-                                )}
-                              </Button>
+                    <div key={model.name} className="border rounded-lg hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center justify-between p-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-medium">{model.name}</h3>
+                            {model.installed && (
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                                ✅ インストール済み
+                              </Badge>
                             )}
+                            {model.official && (
+                              <Badge variant="outline" className="text-xs">
+                                🏛️ 公式
+                              </Badge>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleModelExpansion(model.name)}
+                              className="text-slate-500 hover:text-slate-700 p-1 ml-2"
+                            >
+                              {expandedModels.has(model.name) ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </Button>
                           </div>
-                        )}
+                          <p className="text-sm text-slate-600 mb-2">{model.description}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs">
+                              📦 {model.size}
+                            </Badge>
+                            {model.pulls && (
+                              <Badge variant="secondary" className="text-xs">
+                                📥 {model.pulls.toLocaleString()}回ダウンロード
+                              </Badge>
+                            )}
+                            {model.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary" className="text-xs">
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          {model.installed ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setModelName(model.name)
+                                  setShowModelBrowser(false)
+                                }}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                ✨ 使用
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (confirm(`モデル「${model.name}」を削除しますか？`)) {
+                                    deleteModel(model.name)
+                                  }
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              {pullProgress[model.name] ? (
+                                <div className="min-w-[200px]">
+                                  <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+                                    <span>{pullProgress[model.name].status}</span>
+                                    <span>
+                                      {Math.round((pullProgress[model.name].completed / pullProgress[model.name].total) * 100)}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div 
+                                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                      style={{ 
+                                        width: `${(pullProgress[model.name].completed / pullProgress[model.name].total) * 100}%` 
+                                      }}
+                                    ></div>
+                                  </div>
+                                  <div className="text-xs text-slate-500 mt-1">
+                                    {formatBytes(pullProgress[model.name].completed)} / {formatBytes(pullProgress[model.name].total)}
+                                  </div>
+                                </div>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => downloadModelWithProgress(model.name)}
+                                  disabled={downloadingModels.has(model.name)}
+                                  className="min-w-[120px]"
+                                >
+                                  {downloadingModels.has(model.name) ? (
+                                    <>
+                                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                      ダウンロード中...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Download className="w-4 h-4 mr-2" />
+                                      ダウンロード
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      
+                      {/* 展開可能なモデルタグセクション */}
+                      {expandedModels.has(model.name) && (
+                        <div className="border-t bg-slate-50 px-4 py-3">
+                          <h4 className="text-sm font-medium text-slate-700 mb-3">利用可能なバリアント:</h4>
+                          {modelTags[model.name] ? (
+                            <div className="space-y-2">
+                              {modelTags[model.name].map((tag) => (
+                                <div key={tag.tag} className="flex items-center justify-between p-3 bg-white rounded border hover:bg-slate-50">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-mono text-sm">{tag.name}:{tag.tag}</span>
+                                      {tag.installed && (
+                                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                          インストール済み
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    {tag.size && (
+                                      <div className="text-xs text-slate-500">
+                                        サイズ: {tag.size}
+                                      </div>
+                                    )}
+                                    {tag.description && (
+                                      <div className="text-xs text-slate-600 mt-1">
+                                        {tag.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="ml-4">
+                                    {tag.installed ? (
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            setModelName(`${tag.name}:${tag.tag}`)
+                                            setShowModelBrowser(false)
+                                          }}
+                                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                        >
+                                          ✨ 使用
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            if (confirm(`モデル「${tag.name}:${tag.tag}」を削除しますか？`)) {
+                                              deleteModel(`${tag.name}:${tag.tag}`)
+                                            }
+                                          }}
+                                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col gap-2">
+                                        {pullProgress[`${tag.name}:${tag.tag}`] ? (
+                                          <div className="min-w-[180px]">
+                                            <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
+                                              <span>{pullProgress[`${tag.name}:${tag.tag}`].status}</span>
+                                              <span>
+                                                {Math.round((pullProgress[`${tag.name}:${tag.tag}`].completed / pullProgress[`${tag.name}:${tag.tag}`].total) * 100)}%
+                                              </span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 rounded-full h-2">
+                                              <div 
+                                                className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                                style={{ 
+                                                  width: `${(pullProgress[`${tag.name}:${tag.tag}`].completed / pullProgress[`${tag.name}:${tag.tag}`].total) * 100}%` 
+                                                }}
+                                              ></div>
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">
+                                              {formatBytes(pullProgress[`${tag.name}:${tag.tag}`].completed)} / {formatBytes(pullProgress[`${tag.name}:${tag.tag}`].total)}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => downloadModelWithProgress(`${tag.name}:${tag.tag}`)}
+                                            disabled={downloadingModels.has(`${tag.name}:${tag.tag}`)}
+                                            className="min-w-[100px]"
+                                          >
+                                            {downloadingModels.has(`${tag.name}:${tag.tag}`) ? (
+                                              <>
+                                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                                取得中...
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Download className="w-4 h-4 mr-2" />
+                                                取得
+                                              </>
+                                            )}
+                                          </Button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-slate-500">
+                              <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" />
+                              バリアント情報を読み込み中...
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
