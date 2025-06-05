@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// テスト用の簡単なGETエンドポイントを追加
+export async function GET() {
+  return NextResponse.json({ 
+    message: 'ollama-pull-stream API is working',
+    timestamp: new Date().toISOString()
+  })
+}
+
 export async function POST(request: NextRequest) {
+  console.log('=== PULL STREAM API CALLED ===')
   try {
-    const { endpoint, modelName } = await request.json()
+    const body = await request.json()
+    const { endpoint, modelName } = body
+    
+    console.log('Pull stream request:', { endpoint, modelName, body })
     
     if (!modelName) {
+      console.log('Error: No model name provided')
       return NextResponse.json({
         success: false,
         error: 'モデル名が指定されていません'
@@ -12,6 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     const ollamaEndpoint = endpoint?.replace('/v1', '') || 'http://localhost:11434'
+    console.log('Using Ollama endpoint:', ollamaEndpoint)
     
     // Server-Sent Events用のストリーミングレスポンスを作成
     const encoder = new TextEncoder()
@@ -19,6 +33,7 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          console.log(`Starting pull for model: ${modelName}`)
           const response = await fetch(`${ollamaEndpoint}/api/pull`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -26,8 +41,10 @@ export async function POST(request: NextRequest) {
           })
 
           if (!response.ok) {
+            const errorText = await response.text()
+            console.error(`Ollama pull failed:`, response.status, response.statusText, errorText)
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-              error: `Failed to start pull: ${response.statusText}`
+              error: `Failed to start pull: ${response.statusText} - ${errorText}`
             })}\n\n`))
             controller.close()
             return

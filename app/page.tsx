@@ -144,21 +144,32 @@ export default function LocalLLMChat() {
 
   // モデルのダウンロード（ストリーミング版）
   const downloadModelWithProgress = async (modelName: string) => {
+    console.log('=== DOWNLOAD MODEL WITH PROGRESS ===')
+    console.log('Model Name:', modelName)
+    console.log('Custom Endpoint:', customEndpoint)
+    
     setDownloadingModels(prev => new Set([...prev, modelName]))
     setPullProgress(prev => ({ ...prev, [modelName]: { completed: 0, total: 0, status: 'starting' } }))
     
     try {
+      const requestBody = {
+        endpoint: customEndpoint,
+        modelName
+      }
+      console.log('Request Body:', requestBody)
+      
       const response = await fetch('/api/ollama-pull-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: customEndpoint,
-          modelName
-        })
+        body: JSON.stringify(requestBody)
       })
 
+      console.log('Response Status:', response.status)
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error('Response Error:', errorText)
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
       }
 
       const reader = response.body?.getReader()
