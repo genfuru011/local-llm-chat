@@ -3,7 +3,6 @@
 import { useChat } from "@ai-sdk/react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { useId } from "react"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,16 +16,9 @@ interface OllamaModel {
   official: boolean
   installed: boolean
   modified?: string | null
-  updated_at?: string
-  downloads?: number
-  pulls?: number
 }
 
-import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select"
-
 export default function LocalLLMChat() {
-  const [filterOfficial, setFilterOfficial] = useState(false)
-  const [filterInstalled, setFilterInstalled] = useState(false)
   const [customEndpoint, setCustomEndpoint] = useState("http://localhost:11434/v1")
   const [modelName, setModelName] = useState("llama3.2")
   const [showSettings, setShowSettings] = useState(false)
@@ -41,9 +33,6 @@ export default function LocalLLMChat() {
   const [loadingModels, setLoadingModels] = useState(false)
   const [modelFilter, setModelFilter] = useState('')
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set())
-  const [modelDataSource, setModelDataSource] = useState<string>('')
-  const [sortBy, setSortBy] = useState<string>('pulls')
-  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
 
   // ローカルストレージから設定を読み込み
   useEffect(() => {
@@ -89,16 +78,15 @@ export default function LocalLLMChat() {
   }
 
   // 利用可能なモデル一覧を取得
-  const fetchAvailableModels = async (search: string = "") => {
+  const fetchAvailableModels = async () => {
     setLoadingModels(true)
     try {
       const endpoint = customEndpoint.replace('/v1', '')
-      const url = `/api/ollama-models?endpoint=${encodeURIComponent(endpoint)}${search ? `&search=${encodeURIComponent(search)}` : ''}&sort_by=${sortBy}&order=${sortOrder}`
-      const response = await fetch(url)
+      const response = await fetch(`/api/ollama-models?endpoint=${encodeURIComponent(endpoint)}`)
       const data = await response.json()
+      
       if (data.success) {
         setAvailableModels(data.models)
-        setModelDataSource(data.source)
       } else {
         console.error('Failed to fetch models:', data.error)
       }
@@ -169,35 +157,10 @@ export default function LocalLLMChat() {
 
   // フィルタリングされたモデル一覧
   const filteredModels = availableModels.filter(model =>
-    (!filterOfficial || model.official) &&
-    (!filterInstalled || model.installed) &&
-    (
-      model.name.toLowerCase().includes(modelFilter.toLowerCase()) ||
-      model.description.toLowerCase().includes(modelFilter.toLowerCase()) ||
-      model.tags.some(tag => tag.toLowerCase().includes(modelFilter.toLowerCase()))
-    )
+    model.name.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    model.description.toLowerCase().includes(modelFilter.toLowerCase()) ||
+    model.tags.some(tag => tag.toLowerCase().includes(modelFilter.toLowerCase()))
   )
-
-  // データソースのバッジ表示用ヘルパー関数
-  const getDataSourceVariant = (source: string) => {
-    switch (source) {
-      case 'ollamadb': return 'default'
-      case 'ollama-library-scraping': return 'default'
-      case 'ollama-library-detailed': return 'default'
-      case 'fallback': return 'secondary'
-      default: return 'outline'
-    }
-  }
-
-  const getDataSourceLabel = (source: string) => {
-    switch (source) {
-      case 'ollamadb': return '🌐 OllamaDB API'
-      case 'ollama-library-scraping': return '🔍 公式ライブラリ（簡易）'
-      case 'ollama-library-detailed': return '🔍 公式ライブラリ（詳細）'
-      case 'fallback': return '📦 フォールバック'
-      default: return '❓ 不明'
-    }
-  }
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
     api: "/api/chat",
@@ -310,18 +273,11 @@ export default function LocalLLMChat() {
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-lg">Ollamaモデル管理</CardTitle>
-                  {modelDataSource && (
-                    <Badge variant={getDataSourceVariant(modelDataSource)} className="text-xs">
-                      {getDataSourceLabel(modelDataSource)}
-                    </Badge>
-                  )}
-                </div>
+                <CardTitle className="text-lg">Ollamaモデル管理</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => fetchAvailableModels(modelFilter)}
+                  onClick={fetchAvailableModels}
                   disabled={loadingModels}
                 >
                   <RefreshCw className={`w-4 h-4 ${loadingModels ? 'animate-spin' : ''}`} />
@@ -330,34 +286,14 @@ export default function LocalLLMChat() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Search Filter */}
-              <div className="flex gap-2 items-center">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder="モデルを検索..."
-                    value={modelFilter}
-                    onChange={async (e) => {
-                      setModelFilter(e.target.value)
-                      await fetchAvailableModels(e.target.value)
-                    }}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={sortBy} onValueChange={async (v) => { setSortBy(v); await fetchAvailableModels(modelFilter) }}>
-                  <SelectTrigger className="w-28">ソート</SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pulls">人気順</SelectItem>
-                    <SelectItem value="name">名前順</SelectItem>
-                    <SelectItem value="last_updated">更新日順</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sortOrder} onValueChange={async (v) => { setSortOrder(v as 'asc' | 'desc'); await fetchAvailableModels(modelFilter) }}>
-                  <SelectTrigger className="w-20">順序</SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="desc">降順</SelectItem>
-                    <SelectItem value="asc">昇順</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="モデルを検索..."
+                  value={modelFilter}
+                  onChange={(e) => setModelFilter(e.target.value)}
+                  className="pl-10"
+                />
               </div>
 
               {/* Model List */}
@@ -556,4 +492,3 @@ export default function LocalLLMChat() {
     </div>
   )
 }
-
