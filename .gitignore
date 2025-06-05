@@ -44,3 +44,22 @@ next-env.d.ts
 dist/
 build/
 .next/
+
+# Backup and temporary files
+*.old
+*.new
+*.broken
+*.backup
+*.tmp
+
+# Test files
+*.test.ts
+*.mock.test.ts
+
+# System files
+.DS_Store
+*.pem
+
+# Electron builder artifacts
+builder-*.yml
+builder-*.yaml

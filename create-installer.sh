@@ -100,27 +100,130 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "$(date): 🚀 Local LLM Chat を起動しています..."
 
-# Ollamaの確認
+# Ollama自動インストール関数
+auto_install_ollama() {
+    echo "$(date): 🔧 Ollamaの自動インストールを開始します..."
+    
+    # Homebrewの確認とインストール
+    if ! command -v brew &> /dev/null; then
+        echo "$(date): 📦 Homebrewをインストール中..."
+        osascript -e 'display notification "Homebrewをインストールしています..." with title "Local LLM Chat"'
+        
+        # Homebrewのインストール
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" >> "$LOG_FILE" 2>&1
+        
+        # PATHの更新（Apple Siliconの場合）
+        if [[ $(uname -m) == "arm64" ]]; then
+            echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        else
+            echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.zprofile
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+        
+        if ! command -v brew &> /dev/null; then
+            echo "$(date): ❌ Homebrewのインストールに失敗しました"
+            return 1
+        fi
+        
+        echo "$(date): ✅ Homebrewのインストールが完了しました"
+    fi
+    
+    # Ollamaのインストール
+    echo "$(date): 📦 Ollamaをインストール中..."
+    osascript -e 'display notification "Ollamaをインストールしています（数分かかる場合があります）..." with title "Local LLM Chat"'
+    
+    # Homebrewでollamaをインストール
+    brew install ollama >> "$LOG_FILE" 2>&1
+    
+    # インストール確認
+    if command -v ollama &> /dev/null; then
+        echo "$(date): ✅ Ollamaのインストールが完了しました"
+        
+        # Ollamaサービスの起動
+        echo "$(date): 🚀 Ollamaサービスを起動中..."
+        brew services start ollama >> "$LOG_FILE" 2>&1
+        sleep 3
+        
+        return 0
+    else
+        echo "$(date): ❌ Ollamaのインストールに失敗しました"
+        return 1
+    fi
+}
+
+# Ollamaの確認と自動インストール
 check_ollama() {
     if ! command -v ollama &> /dev/null; then
+        echo "$(date): ⚠️  Ollamaが見つかりません。自動インストールを試行します..."
+        
+        # ユーザーに確認
         osascript -e '
-        display dialog "Ollamaがインストールされていません。
+        set userChoice to display dialog "Ollamaがインストールされていません。
 
-自動でインストールしますか？
+以下のオプションから選択してください：
 
-「はい」を選択すると、ブラウザでOllamaのダウンロードページが開きます。" buttons {"キャンセル", "はい"} default button "はい" with icon caution
-        ' 
-        if [ $? -eq 0 ]; then
+1. 自動インストール（推奨）- Homebrewを使用してOllamaを自動インストール
+2. 手動インストール - ブラウザでダウンロードページを開く
+3. キャンセル - 後でインストール" buttons {"キャンセル", "手動", "自動"} default button "自動" with icon caution
+        button returned of result
+        ') 2>/dev/null
+        
+        case "$choice" in
+            "自動")  # 自動インストール選択
+                auto_install_ollama
+                ;;
+            "手動")  # 手動インストール選択  
+                echo "$(date): 📱 手動インストールを選択しました"
+                open "https://ollama.ai/download"
+                osascript -e 'display dialog "Ollamaのインストールが完了したら、再度アプリを起動してください。" buttons {"OK"} default button "OK" with icon note'
+                exit 1
+                ;;
+            "キャンセル")  # キャンセル
+                echo "$(date): ❌ インストールがキャンセルされました"
+                exit 1
+                ;;
+        esac
+        
+        # インストール後の確認
+        if ! command -v ollama &> /dev/null; then
+            echo "$(date): ❌ Ollamaのインストールに失敗しました"
+            osascript -e 'display dialog "Ollamaのインストールに失敗しました。手動でインストールしてください。" buttons {"OK"} default button "OK" with icon stop'
             open "https://ollama.ai/download"
+            exit 1
         fi
-        exit 1
+        
+        echo "$(date): ✅ Ollamaのインストールが完了しました"
+        osascript -e 'display notification "Ollamaのインストールが完了しました！" with title "Local LLM Chat"'
     fi
     
     # Ollamaサービスの起動
-    if ! pgrep -f "ollama serve" > /dev/null; then
+    echo "$(date): 🔍 Ollamaサービスの状態を確認中..."
+    
+    # Homebrewサービスとして起動しているかチェック
+    if brew services list | grep -q "ollama.*started"; then
+        echo "$(date): ✅ Ollamaサービスは既に起動しています（Homebrew管理）"
+    elif pgrep -f "ollama serve" > /dev/null; then
+        echo "$(date): ✅ Ollamaサービスは既に起動しています"
+    else
         echo "$(date): 📦 Ollama サービスを起動中..."
-        ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
-        sleep 3
+        
+        # Homebrewサービスとして起動を試行
+        if command -v brew &> /dev/null && brew services list | grep -q "ollama"; then
+            brew services start ollama >> "$LOG_FILE" 2>&1
+            echo "$(date): 🔧 HomebrewサービスとしてOllamaを起動しました"
+        else
+            # 直接起動
+            ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
+            echo "$(date): 🔧 直接プロセスとしてOllamaを起動しました"
+        fi
+        
+        sleep 5  # サービス起動待機時間を延長
+        
+        # 起動確認
+        if ! (brew services list | grep -q "ollama.*started" || pgrep -f "ollama serve" > /dev/null); then
+            echo "$(date): ⚠️  Ollamaサービスの起動に失敗した可能性があります"
+        fi
     fi
     
     # デフォルトモデルの確認
