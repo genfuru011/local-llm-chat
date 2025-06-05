@@ -24,32 +24,124 @@ npm run build
 echo "📦 Windows NSISインストーラーを作成中..."
 npx electron-builder --win --publish=never
 
-# Windows専用の起動スクリプトを作成
+# Windows専用の起動スクリプト（自動インストール機能付き）を作成
 cat > "$BUILD_DIR/start-app.bat" << 'EOF'
 @echo off
 title Local LLM Chat
+chcp 65001 >nul
 
 echo 🚀 Local LLM Chat を起動しています...
 
-REM Ollamaの確認
+REM Ollamaの確認と自動インストール
+:check_ollama
 where ollama >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo ❌ Ollamaがインストールされていません
-    echo 📥 Ollamaをダウンロードしてインストールしてください
-    start https://ollama.ai/download
-    pause
-    exit /b 1
+    echo.
+    echo 自動インストールオプション:
+    echo 1. Chocolatey経由で自動インストール（推奨）
+    echo 2. 手動ダウンロード
+    echo 3. 終了
+    echo.
+    set /p choice=選択してください [1-3]: 
+    
+    if "%choice%"=="1" goto auto_install_ollama
+    if "%choice%"=="2" goto manual_install_ollama
+    if "%choice%"=="3" exit /b 1
+    
+    echo 無効な選択です。再度選択してください。
+    goto check_ollama
+)
+goto check_nodejs
+
+:auto_install_ollama
+echo 📦 Ollamaの自動インストールを開始します...
+
+REM Chocolateyの確認
+where choco >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo 📦 Chocolateyをインストール中...
+    echo Chocolateyのインストールには管理者権限が必要です。
+    
+    REM PowerShellでChocolateyをインストール
+    powershell -Command "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))"
+    
+    if %ERRORLEVEL% NEQ 0 (
+        echo ❌ Chocolateyのインストールに失敗しました
+        goto manual_install_ollama
+    )
+    
+    REM PATHを更新
+    call refreshenv
 )
 
-REM Node.jsの確認
+echo 📦 Ollamaをインストール中...
+choco install ollama -y
+
+REM インストール確認
+where ollama >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo ❌ Ollamaの自動インストールに失敗しました
+    goto manual_install_ollama
+)
+
+echo ✅ Ollamaのインストールが完了しました
+goto check_nodejs
+
+:manual_install_ollama
+echo 📥 手動インストール: ブラウザでOllamaダウンロードページを開きます
+start https://ollama.ai/download
+echo.
+echo Ollamaのインストールが完了したら、このウィンドウで何かキーを押してください。
+pause >nul
+goto check_ollama
+
+:check_nodejs
+REM Node.jsの確認と自動インストール
 where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo ❌ Node.jsがインストールされていません
-    echo 📥 Node.jsをダウンロードしてインストールしてください
-    start https://nodejs.org/en/download/
-    pause
-    exit /b 1
+    echo.
+    echo 自動インストールオプション:
+    echo 1. Chocolatey経由で自動インストール（推奨）
+    echo 2. 手動ダウンロード
+    echo 3. 終了
+    echo.
+    set /p choice=選択してください [1-3]: 
+    
+    if "%choice%"=="1" goto auto_install_nodejs
+    if "%choice%"=="2" goto manual_install_nodejs
+    if "%choice%"=="3" exit /b 1
+    
+    echo 無効な選択です。再度選択してください。
+    goto check_nodejs
 )
+goto start_services
+
+:auto_install_nodejs
+echo 📦 Node.jsの自動インストールを開始します...
+choco install nodejs -y
+
+REM インストール確認
+call refreshenv
+where node >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo ❌ Node.jsの自動インストールに失敗しました
+    goto manual_install_nodejs
+)
+
+echo ✅ Node.jsのインストールが完了しました
+goto start_services
+
+:manual_install_nodejs
+echo 📥 手動インストール: ブラウザでNode.jsダウンロードページを開きます
+start https://nodejs.org/en/download/
+echo.
+echo Node.jsのインストールが完了したら、このウィンドウで何かキーを押してください。
+pause >nul
+goto check_nodejs
+
+:start_services
 
 REM Ollamaサービスの起動
 echo 📦 Ollama サービスを起動中...
