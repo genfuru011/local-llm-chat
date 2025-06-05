@@ -59,6 +59,15 @@ export default function LocalLLMChat() {
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set())
   const [modelTags, setModelTags] = useState<{[key: string]: ModelTag[]}>({})
 
+  // ローカルモデル管理の状態
+  const [localModels, setLocalModels] = useState<any[]>([])
+  const [loadingLocalModels, setLoadingLocalModels] = useState(false)
+  const [showLocalModels, setShowLocalModels] = useState(false)
+  const [deletingModels, setDeletingModels] = useState<Set<string>>(new Set())
+  const [selectedModelsForDeletion, setSelectedModelsForDeletion] = useState<Set<string>>(new Set())
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
+  const [customModelName, setCustomModelName] = useState("")
+
   // ローカルストレージから設定を読み込み
   useEffect(() => {
     const savedEndpoint = localStorage.getItem('ollama-endpoint')
@@ -76,6 +85,13 @@ export default function LocalLLMChat() {
   useEffect(() => {
     localStorage.setItem('ollama-model', modelName)
   }, [modelName])
+
+  // 設定パネルが開かれた時にローカルモデル一覧を取得
+  useEffect(() => {
+    if (showSettings && localModels.length === 0) {
+      fetchLocalModels()
+    }
+  }, [showSettings])
 
   // ステータスメッセージを表示し、自動的に消す
   const showStatusMessage = (type: 'success' | 'error', message: string) => {
@@ -301,6 +317,157 @@ export default function LocalLLMChat() {
     }
   }
 
+  // ローカルモデル一覧を取得
+  const fetchLocalModels = async () => {
+    setLoadingLocalModels(true)
+    try {
+      const endpoint = customEndpoint.replace('/v1', '')
+      const url = `/api/ollama-local-models?endpoint=${encodeURIComponent(endpoint)}`
+      console.log('Fetching local models from:', url)
+      const response = await fetch(url)
+      const data = await response.json()
+      if (data.success) {
+        console.log(`Fetched ${data.models.length} local models`)
+        setLocalModels(data.models)
+        showStatusMessage('success', `${data.models.length}個のローカルモデルを取得しました`)
+      } else {
+        console.error('Failed to fetch local models:', data.error)
+        showStatusMessage('error', `ローカルモデル取得に失敗: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error fetching local models:', error)
+      showStatusMessage('error', 'ローカルモデル一覧の取得中にエラーが発生しました')
+    } finally {
+      setLoadingLocalModels(false)
+    }
+  }
+
+  // ローカルモデルを削除
+  const deleteLocalModel = async (modelName: string) => {
+    console.log('deleteLocalModel called with:', modelName)
+    
+    if (!confirm(`モデル "${modelName}" を削除しますか？この操作は元に戻せません。`)) {
+      console.log('User cancelled deletion')
+      return
+    }
+
+    console.log('Starting deletion process...')
+    setDeletingModels(prev => new Set(prev.add(modelName)))
+    
+    try {
+      const endpoint = customEndpoint.replace('/v1', '')
+      console.log('Deleting model with endpoint:', endpoint)
+      
+      const response = await fetch('/api/ollama-local-models', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint, modelName })
+      })
+      
+      console.log('Delete response status:', response.status)
+      const data = await response.json()
+      console.log('Delete response data:', data)
+      
+      if (data.success) {
+        showStatusMessage('success', data.message)
+        console.log('Deletion successful, refreshing model list...')
+        // ローカルモデル一覧を再取得
+        await fetchLocalModels()
+      } else {
+        console.error('Deletion failed:', data.error)
+        showStatusMessage('error', `削除に失敗: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting model:', error)
+      showStatusMessage('error', 'モデル削除中にエラーが発生しました')
+    } finally {
+      console.log('Cleaning up deletion state...')
+      setDeletingModels(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(modelName)
+        return newSet
+      })
+    }
+  }
+
+  // 一括削除機能
+  const bulkDeleteModels = async (modelNames: string[], reason?: string) => {
+    if (modelNames.length === 0) return
+
+    const confirmMessage = modelNames.length === 1
+      ? `モデル "${modelNames[0]}" を削除しますか？この操作は元に戻せません。`
+      : `選択した${modelNames.length}個のモデルを削除しますか？\n削除対象: ${modelNames.join(', ')}\n\nこの操作は元に戻せません。`
+
+    if (!confirm(confirmMessage)) {
+      return
+    }
+
+    // 削除中のモデルをマーク
+    modelNames.forEach(name => {
+      setDeletingModels(prev => new Set(prev.add(name)))
+    })
+
+    try {
+      const endpoint = customEndpoint.replace('/v1', '')
+      const response = await fetch('/api/ollama-local-models', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint, modelNames, reason })
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        if (data.errors && data.errors.length > 0) {
+          // 一部成功、一部失敗
+          showStatusMessage('error', `${data.message}\n失敗したモデル: ${data.errors.join(', ')}`)
+        } else {
+          // 全て成功
+          showStatusMessage('success', data.message)
+        }
+        // ローカルモデル一覧を再取得
+        await fetchLocalModels()
+        // 選択をクリア
+        setSelectedModelsForDeletion(new Set())
+      } else {
+        showStatusMessage('error', `一括削除に失敗: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error bulk deleting models:', error)
+      showStatusMessage('error', '一括削除中にエラーが発生しました')
+    } finally {
+      // 削除中マークを解除
+      modelNames.forEach(name => {
+        setDeletingModels(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(name)
+          return newSet
+        })
+      })
+    }
+  }
+
+  // モデル選択のトグル
+  const toggleModelSelection = (modelName: string) => {
+    setSelectedModelsForDeletion(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(modelName)) {
+        newSet.delete(modelName)
+      } else {
+        newSet.add(modelName)
+      }
+      return newSet
+    })
+  }
+
+  // 全モデル選択のトグル
+  const toggleAllModelsSelection = () => {
+    if (selectedModelsForDeletion.size === localModels.length) {
+      setSelectedModelsForDeletion(new Set())
+    } else {
+      setSelectedModelsForDeletion(new Set(localModels.map(model => model.name)))
+    }
+  }
+
   // モデルタグを取得
   const fetchModelTags = async (modelName: string) => {
     try {
@@ -335,6 +502,17 @@ export default function LocalLLMChat() {
       }
       return newSet
     })
+  }
+
+  // モデル名を正しく構築するヘルパー関数
+  const buildModelName = (tag: ModelTag) => {
+    // tag.nameが既にコロンを含んでいる場合（例: "gemma3:1b"）、
+    // そのまま使用（重複を避ける）
+    if (tag.name.includes(':')) {
+      return tag.name
+    }
+    // tag.nameにコロンが含まれていない場合は、通常通り結合
+    return `${tag.name}:${tag.tag}`
   }
 
   // フィルタリングされたモデル一覧
@@ -400,6 +578,7 @@ export default function LocalLLMChat() {
               size="sm" 
               onClick={() => {
                 setShowModelBrowser(!showModelBrowser)
+                setShowLocalModels(false)
                 if (!showModelBrowser) {
                   fetchAvailableModels()
                 }
@@ -407,7 +586,22 @@ export default function LocalLLMChat() {
               className={showModelBrowser ? "bg-blue-600 hover:bg-blue-700" : ""}
             >
               <Download className="w-4 h-4 mr-2" />
-              モデル管理
+              モデル検索
+            </Button>
+            <Button 
+              variant={showLocalModels ? "default" : "outline"}
+              size="sm" 
+              onClick={() => {
+                setShowLocalModels(!showLocalModels)
+                setShowModelBrowser(false)
+                if (!showLocalModels) {
+                  fetchLocalModels()
+                }
+              }}
+              className={showLocalModels ? "bg-green-600 hover:bg-green-700" : ""}
+            >
+              <Bot className="w-4 h-4 mr-2" />
+              ローカルモデル
             </Button>
             <Button 
               variant={showSettings ? "default" : "outline"}
@@ -460,14 +654,71 @@ export default function LocalLLMChat() {
                 </div>
                 <div>
                   <label className="text-sm font-medium">モデル名</label>
-                  <Input 
-                    value={modelName} 
-                    onChange={(e) => setModelName(e.target.value)} 
-                    placeholder="llama3.2"
-                    className="mt-2"
-                  />
+                  <div className="mt-2 space-y-2">
+                    <Select 
+                      value={modelName === customModelName && customModelName !== "" ? "custom" : modelName} 
+                      onValueChange={(value) => {
+                        if (value === "custom") {
+                          setCustomModelName(modelName)
+                        } else if (value === "no-models-available") {
+                          // 何もしない（無効な選択肢）
+                          return
+                        } else {
+                          setModelName(value)
+                          setCustomModelName("")
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <span>
+                          {modelName || "モデルを選択してください"}
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {localModels.length > 0 ? (
+                          localModels.map((model) => (
+                            <SelectItem key={model.name} value={model.name}>
+                              <div className="flex items-center justify-between w-full">
+                                <span className="font-mono text-sm">{model.name}</span>
+                                {model.size && (
+                                  <span className="text-xs text-slate-500 ml-2">
+                                    {formatBytes(model.size)}
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-models-available" disabled>
+                            インストール済みモデルがありません
+                          </SelectItem>
+                        )}
+                        <SelectItem value="custom">
+                          🔧 カスタムモデル名を入力
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* カスタムモデル名が選択された場合の入力フィールド */}
+                    {(modelName === customModelName && customModelName !== "") || 
+                     (!localModels.some(m => m.name === modelName) && modelName !== "") && (
+                      <div className="mt-2">
+                        <Input 
+                          value={customModelName || modelName}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            setCustomModelName(value)
+                            setModelName(value)
+                          }} 
+                          placeholder="llama3.2"
+                          className="mt-1"
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    使用するOllamaモデルの名前を入力してください
+                    インストール済みのモデルから選択するか、カスタム名を入力してください
                   </p>
                 </div>
               </div>
@@ -755,7 +1006,7 @@ export default function LocalLLMChat() {
                                 <div key={tag.tag} className="flex items-center justify-between p-3 bg-white rounded border hover:bg-slate-50">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-mono text-sm">{tag.name}:{tag.tag}</span>
+                                      <span className="font-mono text-sm">{buildModelName(tag)}</span>
                                       {tag.installed && (
                                         <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                                           インストール済み
@@ -780,7 +1031,7 @@ export default function LocalLLMChat() {
                                           variant="ghost"
                                           size="sm"
                                           onClick={() => {
-                                            setModelName(`${tag.name}:${tag.tag}`)
+                                            setModelName(buildModelName(tag))
                                             setShowModelBrowser(false)
                                           }}
                                           className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
@@ -791,8 +1042,8 @@ export default function LocalLLMChat() {
                                           variant="ghost"
                                           size="sm"
                                           onClick={() => {
-                                            if (confirm(`モデル「${tag.name}:${tag.tag}」を削除しますか？`)) {
-                                              deleteModel(`${tag.name}:${tag.tag}`)
+                                            if (confirm(`モデル「${buildModelName(tag)}」を削除しますか？`)) {
+                                              deleteModel(buildModelName(tag))
                                             }
                                           }}
                                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -802,35 +1053,35 @@ export default function LocalLLMChat() {
                                       </div>
                                     ) : (
                                       <div className="flex flex-col gap-2">
-                                        {pullProgress[`${tag.name}:${tag.tag}`] ? (
+                                        {pullProgress[buildModelName(tag)] ? (
                                           <div className="min-w-[180px]">
                                             <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
-                                              <span>{pullProgress[`${tag.name}:${tag.tag}`].status}</span>
+                                              <span>{pullProgress[buildModelName(tag)].status}</span>
                                               <span>
-                                                {Math.round((pullProgress[`${tag.name}:${tag.tag}`].completed / pullProgress[`${tag.name}:${tag.tag}`].total) * 100)}%
+                                                {Math.round((pullProgress[buildModelName(tag)].completed / pullProgress[buildModelName(tag)].total) * 100)}%
                                               </span>
                                             </div>
                                             <div className="w-full bg-gray-200 rounded-full h-2">
                                               <div 
                                                 className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                                                 style={{ 
-                                                  width: `${(pullProgress[`${tag.name}:${tag.tag}`].completed / pullProgress[`${tag.name}:${tag.tag}`].total) * 100}%` 
+                                                  width: `${(pullProgress[buildModelName(tag)].completed / pullProgress[buildModelName(tag)].total) * 100}%` 
                                                 }}
                                               ></div>
                                             </div>
                                             <div className="text-xs text-slate-500 mt-1">
-                                              {formatBytes(pullProgress[`${tag.name}:${tag.tag}`].completed)} / {formatBytes(pullProgress[`${tag.name}:${tag.tag}`].total)}
+                                              {formatBytes(pullProgress[buildModelName(tag)].completed)} / {formatBytes(pullProgress[buildModelName(tag)].total)}
                                             </div>
                                           </div>
                                         ) : (
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => downloadModelWithProgress(`${tag.name}:${tag.tag}`)}
-                                            disabled={downloadingModels.has(`${tag.name}:${tag.tag}`)}
+                                            onClick={() => downloadModelWithProgress(buildModelName(tag))}
+                                            disabled={downloadingModels.has(buildModelName(tag))}
                                             className="min-w-[100px]"
                                           >
-                                            {downloadingModels.has(`${tag.name}:${tag.tag}`) ? (
+                                            {downloadingModels.has(buildModelName(tag)) ? (
                                               <>
                                                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                                                 取得中...
@@ -861,6 +1112,198 @@ export default function LocalLLMChat() {
                   ))
                 )}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Local Models Panel */}
+        {showLocalModels && (
+          <Card className="mb-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Bot className="w-5 h-5" />
+                  ローカルモデル管理
+                  {localModels.length > 0 && (
+                    <Badge variant="outline" className="ml-2">
+                      {localModels.length}個
+                    </Badge>
+                  )}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {localModels.length > 0 && selectedModelsForDeletion.size > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => bulkDeleteModels(Array.from(selectedModelsForDeletion))}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      選択削除 ({selectedModelsForDeletion.size})
+                    </Button>
+                  )}
+                  <div className="text-xs text-slate-500 hidden md:block">
+                    💾 ダウンロード済みモデル
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => fetchLocalModels()}
+                    disabled={loadingLocalModels}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingLocalModels ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Status Message */}
+              {statusMessage && (
+                <div className={`p-3 rounded-lg ${
+                  statusMessage.type === 'success' 
+                    ? 'bg-green-50 text-green-800 border border-green-200' 
+                    : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
+                  {statusMessage.message}
+                </div>
+              )}
+
+              {loadingLocalModels ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-slate-400" />
+                  <p className="text-slate-500">ローカルモデルを読み込み中...</p>
+                </div>
+              ) : localModels.length === 0 ? (
+                <div className="text-center py-8">
+                  <Bot className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+                  <p className="text-slate-500 mb-2">ダウンロード済みモデルがありません</p>
+                  <p className="text-xs text-slate-400">モデル検索からモデルをダウンロードしてください</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* 一括操作コントロール */}
+                  {localModels.length > 1 && (
+                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedModelsForDeletion.size === localModels.length}
+                          onChange={toggleAllModelsSelection}
+                          className="rounded"
+                        />
+                        <span className="text-sm text-slate-700">
+                          全選択 ({selectedModelsForDeletion.size}/{localModels.length})
+                        </span>
+                      </div>
+                      {selectedModelsForDeletion.size > 0 && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedModelsForDeletion(new Set())}
+                            className="text-slate-600"
+                          >
+                            選択解除
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => bulkDeleteModels(Array.from(selectedModelsForDeletion))}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            削除 ({selectedModelsForDeletion.size})
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* モデル一覧 */}
+                  {localModels.map((model) => (
+                    <div key={model.name} className={`border rounded-lg p-4 transition-colors ${
+                      selectedModelsForDeletion.has(model.name) ? 'bg-red-50 border-red-200' : 'hover:bg-slate-50'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1">
+                          {localModels.length > 1 && (
+                            <input
+                              type="checkbox"
+                              checked={selectedModelsForDeletion.has(model.name)}
+                              onChange={() => toggleModelSelection(model.name)}
+                              className="rounded"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="font-medium text-slate-800">{model.name}</h3>
+                              <Badge variant="outline" className="text-xs">
+                                {model.sizeFormatted}
+                              </Badge>
+                              {modelName === model.name && (
+                                <Badge variant="default" className="text-xs bg-green-600">
+                                  使用中
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 space-y-1">
+                              <div>最終更新: {model.modifiedFormatted}</div>
+                              {model.digest && (
+                                <div className="font-mono text-xs">ID: {model.digest.slice(0, 12)}...</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setModelName(model.name)
+                              setShowLocalModels(false)
+                              showStatusMessage('success', `モデル "${model.name}" を選択しました`)
+                            }}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            disabled={modelName === model.name}
+                          >
+                            {modelName === model.name ? '使用中' : '✨ 使用'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteLocalModel(model.name)}
+                            disabled={deletingModels.has(model.name)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {deletingModels.has(model.name) ? (
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 削除統計情報 */}
+                  {localModels.length > 0 && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="text-sm text-blue-800">
+                        <div className="flex justify-between items-center">
+                          <span>💾 総容量: {
+                            (() => {
+                              const totalBytes = localModels.reduce((sum, model) => sum + (model.size || 0), 0)
+                              return formatBytes(totalBytes)
+                            })()
+                          }</span>
+                          <span>🗂️ {localModels.length}個のモデル</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
