@@ -59,7 +59,17 @@ build/
 # System files
 .DS_Store
 *.pem
+Thumbs.db
 
 # Electron builder artifacts
 builder-*.yml
 builder-*.yaml
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
