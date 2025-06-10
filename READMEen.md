@@ -28,14 +28,17 @@ Local LLM Chat is an AI chat application that runs entirely in your local enviro
 
 1. Download [Local-LLM-Chat-Installer.dmg](./dist/Local-LLM-Chat-Installer.dmg)
 2. Open the DMG file and drag to Applications folder
-3. Launch the application (auto-setup on first run)
+3. Launch the application
+4. Ollama & Node.js will be auto-installed on first run
 
 ### Windows
 
 1. Download [Local-LLM-Chat-Windows-Portable.zip](./dist/Local-LLM-Chat-Windows-Portable.zip)
 2. Extract to your preferred location
 3. Run `Local LLM Chat.exe`
-4. See [Windows Setup Guide](./dist/WINDOWS-SETUP-GUIDE.md) for detailed instructions
+4. Ollama & Node.js will be auto-installed on first run
+
+> 💡 **Auto-Installation Feature**: Required dependencies are automatically detected and installed on first launch. Administrator privileges may be required.
 
 ## 🚀 Usage
 
@@ -120,11 +123,8 @@ npm run build
 
 ## 📚 Documentation
 
-- [Installation Guide](./INSTALLATION_GUIDE.md) (Japanese)
-- [Auto-Installation Guide](./AUTO_INSTALL_GUIDE.md) (Japanese)
 - [Windows Setup Guide](./dist/WINDOWS-SETUP-GUIDE.md)
-- [Installer Status](./INSTALLER_STATUS.md) (Japanese)
-- [Project Cleanup Report](./CLEANUP_REPORT.md) (Japanese)
+- [Japanese README](./README.md)
 
 ## 🆘 Troubleshooting
 

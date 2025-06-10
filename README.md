@@ -28,14 +28,17 @@ Local LLM Chatは、完全にローカル環境で動作するAIチャットア�
 
 1. [Local-LLM-Chat-Installer.dmg](./dist/Local-LLM-Chat-Installer.dmg)をダウンロード
 2. DMGファイルを開いてApplicationsフォルダにドラッグ
-3. アプリケーションを起動（初回起動時に自動セットアップ）
+3. アプリケーションを起動
+4. 初回起動時にOllama・Node.jsが自動インストールされます
 
 ### Windows
 
 1. [Local-LLM-Chat-Windows-Portable.zip](./dist/Local-LLM-Chat-Windows-Portable.zip)をダウンロード
 2. 任意の場所に解凍
 3. `Local LLM Chat.exe`を実行
-4. 詳細手順は[Windowsセットアップガイド](./dist/WINDOWS-SETUP-GUIDE.md)を参照
+4. 初回起動時にOllama・Node.jsが自動インストールされます
+
+> 💡 **自動インストール機能**: 初回起動時に必要な依存関係が自動検出・インストールされます。管理者権限が必要な場合があります。
 
 ## 🚀 使用方法
 
@@ -120,11 +123,8 @@ npm run build
 
 ## 📚 ドキュメント
 
-- [インストールガイド](./INSTALLATION_GUIDE.md)
-- [自動インストールガイド](./AUTO_INSTALL_GUIDE.md)
 - [Windowsセットアップガイド](./dist/WINDOWS-SETUP-GUIDE.md)
-- [インストーラー状況](./INSTALLER_STATUS.md)
-- [プロジェクト整理レポート](./CLEANUP_REPORT.md)
+- [英語版README](./READMEen.md)
 
 ## 🆘 トラブルシューティング
 
