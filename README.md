@@ -1,6 +1,6 @@
-# 🤖 Local LLM Chat
+# 🤖 OpenAI Chat
 
-**プライベート・セキュアなローカルAIチャットアプリケーション**
+**OpenAI APIを使用したモダンなAIチャットアプリケーション**
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)
@@ -11,58 +11,69 @@
 
 ## 🌟 概要
 
-Local LLM Chatは、完全にローカル環境で動作するAIチャットアプリケーションです。インターネット接続不要で、プライベートかつセキュアにAIとの対話を楽しめます。
+OpenAI Chatは、OpenAI APIを使用してGPTモデルと対話できるモダンなWebアプリケーションです。最新のGPT-4oモデルを含む様々なOpenAIモデルとリアルタイムで会話できます。
 
 ### ✨ 主な特徴
 
-- 🔒 **プライバシー重視** - データはすべてローカルに保存
-- 🚀 **簡単インストール** - ワンクリックでOllamaとNode.jsを自動インストール
+- � **最新のGPTモデル** - GPT-4o、GPT-4 Turbo、GPT-3.5 Turboなど
+- � **セキュア** - APIキーはローカルに安全に保存
 - 🎨 **モダンUI** - 美しく直感的なユーザーインターフェース
-- ⚡ **高速応答** - ローカル処理によるリアルタイム対話
-- 🔄 **モデル管理** - AIモデルの簡単なダウンロード・切り替え
-- 🌐 **クロスプラットフォーム** - macOS・Windows対応
+- ⚡ **リアルタイム** - ストリーミング応答による高速対話
+- 🔄 **モデル切り替え** - 用途に応じたモデル選択
+- 🌐 **Web対応** - ブラウザで動作するシンプルな構成
 
 ## 📦 インストール
 
-### macOS（推奨）
+### 前提条件
 
-1. [Local-LLM-Chat-Installer.dmg](./dist/Local-LLM-Chat-Installer.dmg)をダウンロード
-2. DMGファイルを開いてApplicationsフォルダにドラッグ
-3. アプリケーションを起動
-4. 初回起動時にOllama・Node.jsが自動インストールされます
+- Node.js 18以上
+- OpenAI APIキー（[OpenAI Platform](https://platform.openai.com/api-keys)から取得）
 
-### Windows
+### セットアップ
 
-1. [Local-LLM-Chat-Windows-Portable.zip](./dist/Local-LLM-Chat-Windows-Portable.zip)をダウンロード
-2. 任意の場所に解凍
-3. `Local LLM Chat.exe`を実行
-4. 初回起動時にOllama・Node.jsが自動インストールされます
+1. リポジトリをクローン:
+```bash
+git clone https://github.com/your-username/openai-chat.git
+cd openai-chat
+```
 
-> 💡 **自動インストール機能**: 初回起動時に必要な依存関係が自動検出・インストールされます。管理者権限が必要な場合があります。
+2. 依存関係をインストール:
+```bash
+npm install
+```
+
+3. 開発サーバーを起動:
+```bash
+npm run dev
+```
+
+4. ブラウザで http://localhost:3000 を開く
 
 ## 🚀 使用方法
 
-### 初回起動
+### 初期設定
 
-1. アプリケーションを起動すると自動的にブラウザが開きます
-2. 必要な依存関係（Ollama・Node.js）が自動でインストールされます
-3. 設定パネルからAIモデルを選択・ダウンロード
-4. チャットを開始！
+1. アプリケーションを起動
+2. 設定ボタンをクリック
+3. OpenAI APIキーを入力
+4. 接続テストを実行して確認
+5. 使用したいモデルを選択
+6. チャットを開始！
 
-### AIモデルの管理
+### APIキーの管理
 
-- **モデル選択**: ドロップダウンメニューから利用可能なモデルを選択
-- **新規モデル**: 「カスタムモデル」オプションでモデル名を入力
-- **ダウンロード**: 進行状況バーでダウンロード状況を確認
-- **削除**: 不要なモデルを簡単に削除
+- **APIキー入力**: 設定画面でOpenAI APIキーを安全に入力
+- **接続テスト**: APIキーが正しく設定されているかテスト
+- **モデル更新**: 利用可能なモデル一覧を取得
+- **ローカル保存**: APIキーはブラウザのローカルストレージに保存
 
 ### サポートされているモデル
 
-- **Gemma2**: Google製の高性能モデル
-- **Llama3**: Meta製の最新モデル
-- **Mistral**: 軽量で高速なモデル
-- **CodeLlama**: プログラミング特化モデル
-- その他のOllama対応モデル
+- **GPT-4o**: 最新の高性能マルチモーダルモデル
+- **GPT-4 Turbo**: 高速で高性能なGPT-4
+- **GPT-4**: 高品質な応答を生成する標準モデル
+- **GPT-3.5 Turbo**: コストパフォーマンスに優れたモデル
+- その他のOpenAI対応モデル
 
 ## 🛠️ 開発者向け
 
@@ -70,17 +81,20 @@ Local LLM Chatは、完全にローカル環境で動作するAIチャットア�
 
 - Node.js 18以上
 - npm または yarn
-- Ollama
+- OpenAI APIキー
 
 ### セットアップ
 
 ```bash
 # リポジトリをクローン
 git clone <repository-url>
-cd local-llm-chat
+cd openai-chat
 
 # 依存関係をインストール
 npm install
+
+# 環境変数を設定（オプション）
+echo "OPENAI_API_KEY=your-api-key-here" > .env.local
 
 # 開発サーバーを起動
 npm run dev
@@ -91,61 +105,65 @@ npm run dev
 ```bash
 # 本番用ビルド
 npm run build
+npm start
 
-# macOS用インストーラー作成
-./create-installer.sh
-
-# Windows用ポータブル版作成
-./create-windows-installer.sh
+# デスクトップアプリ（Electron）のビルド
+npm run build-electron
 ```
 
 ### プロジェクト構造
 
 ```
-📦 local-llm-chat/
+📦 openai-chat/
 ├── app/                    # Next.jsアプリケーション
 │   ├── api/               # APIエンドポイント
+│   │   ├── chat/          # チャットAPI
+│   │   ├── test-connection/ # 接続テスト
+│   │   └── openai-models/ # モデル一覧取得
 │   ├── page.tsx           # メインチャットUI
 │   └── layout.tsx         # アプリレイアウト
 ├── components/            # UIコンポーネント
 ├── lib/                   # ユーティリティ関数
-├── dist/                  # 配布用ファイル
-└── build/                 # ビルド成果物
+└── public/                # 静的ファイル
 ```
 
 ## 🔧 技術スタック
 
 - **フロントエンド**: Next.js 15.0.0, React, TypeScript
 - **スタイリング**: Tailwind CSS, shadcn/ui
-- **デスクトップ**: Electron
-- **AI**: Ollama, Vercel AI SDK
-- **ビルド**: electron-builder
+- **AI**: OpenAI API, Vercel AI SDK
+- **デスクトップ**: Electron（オプション）
 
-## 📚 ドキュメント
+## � セキュリティ
 
-- [Windowsセットアップガイド](./dist/WINDOWS-SETUP-GUIDE.md)
-- [英語版README](./READMEen.md)
+- APIキーはローカルストレージに保存
+- OpenAI APIとのHTTPS通信
+- 環境変数での設定にも対応
+- クライアントサイドでのAPIキー管理
 
 ## 🆘 トラブルシューティング
 
 ### よくある問題
 
-**Q: アプリが起動しない**
-- Node.js 18以上がインストールされているか確認
-- Ollamaサービスが起動しているか確認（`ollama serve`）
+**Q: APIキーエラーが発生する**
+- OpenAI APIキーが正しく入力されているか確認
+- APIキーに十分なクレジットがあるか確認
+- [OpenAI Platform](https://platform.openai.com/)で使用状況を確認
 
-**Q: モデルダウンロードが失敗する**
+**Q: モデルが選択できない**
+- 接続テストが成功しているか確認
 - インターネット接続を確認
-- ディスク容量を確認（モデルは数GB必要）
+- OpenAI APIの状況を確認
 
 **Q: チャットが応答しない**
-- Ollamaサービスが動作中か確認
-- 選択したモデルが正しくダウンロードされているか確認
+- APIキーが正しく設定されているか確認
+- 選択したモデルが利用可能か確認
+- レート制限に達していないか確認
 
 ### サポート
 
 問題が解決しない場合は、以下の情報と共にIssueを作成してください：
-- OS・バージョン
+- ブラウザ・バージョン
 - エラーメッセージ
 - 再現手順
 
@@ -165,7 +183,7 @@ npm run build
 
 ## 👥 開発チーム
 
-**Local LLM Chat Team**
+**OpenAI Chat Team**
 
 ---
 

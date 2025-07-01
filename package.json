@@ -1,8 +1,8 @@
 {
-  "name": "local-llm-chat",
+  "name": "openai-chat",
   "version": "2.0.0",
-  "description": "Local LLM Chat - AI powered chat application",
-  "author": "Local LLM Chat Team",
+  "description": "OpenAI Chat - Modern AI chat application using OpenAI API",
+  "author": "OpenAI Chat Team",
   "private": true,
   "main": "main.js",
   "homepage": "./",
